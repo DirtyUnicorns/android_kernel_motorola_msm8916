@@ -1193,6 +1193,7 @@ static int _request_firmware(struct fw_desc *desc)
 	if (ret <= 0) /* error or already assigned */
 		goto out;
 
+
 	ret = 0;
 	timeout = firmware_loading_timeout();
 	if (desc->nowait) {
