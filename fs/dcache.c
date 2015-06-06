@@ -1184,7 +1184,7 @@ ascend:
 			next = child->d_u.d_child.next;
 			if (next == &this_parent->d_subdirs)
 				goto ascend;
-			child = list_entry(next, struct dentry, d_child);
+			child = list_entry(next, struct dentry, d_u.d_child);
 		} while (unlikely(child->d_flags & DCACHE_DENTRY_KILLED));
 		rcu_read_unlock();
 		goto resume;
