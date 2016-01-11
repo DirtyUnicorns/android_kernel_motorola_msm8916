@@ -633,6 +633,7 @@ static void pty_unix98_shutdown(struct tty_struct *tty)
 	devpts_del_ref(ptmx_inode);
 }
 
+
 static const struct tty_operations ptm_unix98_ops = {
 	.lookup = ptm_unix98_lookup,
 	.install = pty_unix98_install,
@@ -761,7 +762,6 @@ err_file:
 	tty_free_file(filp);
 	return retval;
 }
-
 static struct file_operations ptmx_fops;
 
 static void __init unix98_pty_init(void)
