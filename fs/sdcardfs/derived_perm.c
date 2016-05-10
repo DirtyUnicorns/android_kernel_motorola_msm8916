@@ -108,7 +108,7 @@ void get_derived_permission_new(struct dentry *parent, struct dentry *dentry,
 		case PERM_ANDROID_DATA:
 		case PERM_ANDROID_OBB:
 		case PERM_ANDROID_MEDIA:
-			appid = get_appid(sbi->pkgl_id, newdentry->d_name.name);
+			appid = get_appid(newdentry->d_name.name);
 			if (appid != 0) {
 				info->d_uid = multiuser_get_uid(parent_info->userid, appid);
 			}
