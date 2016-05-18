@@ -226,9 +226,9 @@ static int insert_packagelist_entry_locked(const char *key, appid_t value)
 	return 0;
 }
 
-static void fixup_perms(struct super_block *sb) {
+static void fixup_perms(struct super_block *sb, const char *key) {
 	if (sb && sb->s_magic == SDCARDFS_SUPER_MAGIC) {
-		get_derive_permissions_recursive(sb->s_root);
+		fixup_perms_recursive(sb->s_root, key, strlen(key));
 	}
 	new_entry = alloc_hashtable_entry(key, value);
 	if (!new_entry)
@@ -256,12 +256,12 @@ static int insert_userid_exclude_entry_locked(const struct qstr *key, userid_t v
 	return 0;
 }
 
-static void fixup_all_perms(void)
+static void fixup_all_perms(const char *key)
 {
 	struct sdcardfs_sb_info *sbinfo;
 	list_for_each_entry(sbinfo, &sdcardfs_super_list, list)
 		if (sbinfo)
-			fixup_perms(sbinfo->sb);
+			fixup_perms(sbinfo->sb, key);
 }
 
 static int insert_packagelist_entry(const char *key, appid_t value)
@@ -271,7 +271,7 @@ static int insert_packagelist_entry(const char *key, appid_t value)
 	mutex_lock(&sdcardfs_super_list_lock);
 	err = insert_packagelist_entry_locked(key, value);
 	if (!err)
-		fixup_all_perms();
+		fixup_all_perms(key);
 	mutex_unlock(&sdcardfs_super_list_lock);
 
 	return err;
@@ -303,7 +303,7 @@ static void remove_packagelist_entry(const char *key)
 {
 	mutex_lock(&sdcardfs_super_list_lock);
 	remove_packagelist_entry_locked(key);
-	fixup_all_perms();
+	fixup_all_perms(key);
 	mutex_unlock(&sdcardfs_super_list_lock);
 }
 
