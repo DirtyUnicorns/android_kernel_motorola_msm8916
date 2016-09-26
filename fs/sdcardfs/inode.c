@@ -300,6 +300,7 @@ static int sdcardfs_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode
 	copied_fs = copy_fs_struct(current->fs);
 	if (!copied_fs) {
 		err = -ENOMEM;
+		unlock_dir(lower_parent_dentry);
 		goto out_unlock;
 	}
 	current->fs = copied_fs;
@@ -342,9 +343,10 @@ static int sdcardfs_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode
 	fsstack_copy_inode_size(dir, lower_parent_dentry->d_inode);
 	/* update number of links on parent directory */
 	set_nlink(dir, sdcardfs_lower_inode(dir)->i_nlink);
-	fixup_lower_ownership(dentry, dentry->d_name.name);
+
 	unlock_dir(lower_parent_dentry);
-	if ((!sbi->options.multiuser) && (qstr_case_eq(&dentry->d_name, &q_obb))
+
+	if ((!sbi->options.multiuser) && (!strcasecmp(dentry->d_name.name, "obb"))
 		&& (pi->perm == PERM_ANDROID) && (pi->userid == 0))
 		make_nomedia_in_obb = 1;
 
@@ -363,7 +365,6 @@ out:
 	current->fs = saved_fs;
 	free_fs_struct(copied_fs);
 out_unlock:
-	unlock_dir(lower_parent_dentry);
 	sdcardfs_put_lower_path(dentry, &lower_path);
 out_revert:
 	REVERT_CRED(saved_cred);
