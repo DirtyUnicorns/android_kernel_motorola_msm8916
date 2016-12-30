@@ -43,24 +43,7 @@ static DEFINE_HASHTABLE(package_to_userid, 8);
 static DEFINE_HASHTABLE(ext_to_groupid, 8);
 
 
-	while (len--)
-		hash = partial_name_hash(tolower(*name++), hash);
-	return end_name_hash(hash);
-}
-
-static inline void qstr_init(struct qstr *q, const char *name)
-{
-	q->name = name;
-	q->len = strlen(q->name);
-	q->hash = full_name_case_hash(q->name, q->len);
-}
-
-static inline int qstr_copy(const struct qstr *src, struct qstr *dest)
-{
-	dest->name = kstrdup(src->name, GFP_KERNEL);
-	dest->hash_len = src->hash_len;
-	return !!dest->name;
-}
+static struct kmem_cache *hashtable_entry_cachep;
 
 static unsigned int full_name_case_hash(const unsigned char *name, unsigned int len)
 {
@@ -278,30 +261,6 @@ static void fixup_all_perms_name(const struct qstr *key)
 		if (sbinfo_has_sdcard_magic(sbinfo))
 			fixup_perms_recursive(sbinfo->sb->s_root, &limit);
 	}
-	new_entry = alloc_hashtable_entry(key, value);
-	if (!new_entry)
-		return -ENOMEM;
-	hash_add_rcu(ext_to_groupid, &new_entry->hlist, hash);
-	return 0;
-}
-
-static int insert_userid_exclude_entry_locked(const struct qstr *key, userid_t value)
-{
-	struct hashtable_entry *hash_cur;
-	struct hashtable_entry *new_entry;
-	unsigned int hash = key->hash;
-
-	/* Only insert if not already present */
-	hash_for_each_possible_rcu(package_to_userid, hash_cur, hlist, hash) {
-		if (atomic_read(&hash_cur->value) == value &&
-				qstr_case_eq(key, &hash_cur->key))
-			return 0;
-	}
-	new_entry = alloc_hashtable_entry(key, value);
-	if (!new_entry)
-		return -ENOMEM;
-	hash_add_rcu(package_to_userid, &new_entry->hlist, hash);
-	return 0;
 }
 
 static void fixup_all_perms_name_userid(const struct qstr *key, userid_t userid)
