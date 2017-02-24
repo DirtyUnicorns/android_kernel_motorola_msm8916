@@ -2216,12 +2216,20 @@ int gbam_connect(struct grmnet *gr, u8 port_num,
 	}
 	gr->in->driver_data = port;
 
-	ret = usb_ep_enable(gr->out);
-	if (ret) {
-		pr_err("%s: usb_ep_enable failed eptype:OUT ep:%pK",
-			__func__, gr->out);
-		gr->in->driver_data = 0;
-		goto exit;
+	/*
+	 * DPL traffic is routed through BAM-DMUX on some targets.
+	 * DPL function has only 1 IN endpoint. Add out endpoint
+	 * checks for BAM-DMUX transport.
+	 */
+	if (gr->out) {
+		ret = usb_ep_enable(gr->out);
+		if (ret) {
+			pr_err("%s: usb_ep_enable failed eptype:OUT ep:%pK",
+					__func__, gr->out);
+			gr->in->driver_data = 0;
+			goto exit;
+		}
+		gr->out->driver_data = port;
 	}
 	gr->out->driver_data = port;
 
