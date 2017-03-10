@@ -243,28 +243,6 @@ static int sdcardfs_name_match(void *__buf, const char *name, int namelen,
 	return 0;
 }
 
-struct sdcardfs_name_data {
-	struct dir_context ctx;
-	const struct qstr *to_find;
-	char *name;
-	bool found;
-};
-
-static int sdcardfs_name_match(void *__buf, const char *name, int namelen,
-		loff_t offset, u64 ino, unsigned int d_type)
-{
-	struct sdcardfs_name_data *buf = (struct sdcardfs_name_data *) __buf;
-	struct qstr candidate = QSTR_INIT(name, namelen);
-
-	if (qstr_case_eq(buf->to_find, &candidate)) {
-		memcpy(buf->name, name, namelen);
-		buf->name[namelen] = 0;
-		buf->found = true;
-		return 1;
-	}
-	return 0;
-}
-
 /*
  * Main driver function for sdcardfs's lookup.
  *
@@ -281,6 +259,7 @@ static struct dentry *__sdcardfs_lookup(struct dentry *dentry,
 	const struct qstr *name;
 	struct path lower_path;
 	struct qstr dname;
+	struct dentry *ret_dentry = NULL;
 	struct sdcardfs_sb_info *sbi;
 
 	sbi = SDCARDFS_SB(dentry->d_sb);
