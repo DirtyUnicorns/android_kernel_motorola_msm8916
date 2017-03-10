@@ -62,10 +62,18 @@ static inline int qstr_copy(const struct qstr *src, struct qstr *dest)
 	return !!dest->name;
 }
 
+static unsigned int full_name_case_hash(const unsigned char *name, unsigned int len)
+{
+	unsigned long hash = init_name_hash();
+	while (len--)
+		hash = partial_name_hash(tolower(*name++), hash);
+	return end_name_hash(hash);
+}
+
 static void inline qstr_init(struct qstr *q, const char *name) {
 	q->name = name;
 	q->len = strlen(q->name);
-	q->hash = full_name_hash(q->name, q->len);
+	q->hash = full_name_case_hash(q->name, q->len);
 }
 
 static inline int qstr_copy(const struct qstr *src, struct qstr *dest) {
