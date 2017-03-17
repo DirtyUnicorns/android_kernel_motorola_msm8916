@@ -318,9 +318,7 @@ inline void update_derived_permission_lock(struct dentry *dentry)
 	 * 1. need to check whether the dentry is updated or not
 	 * 2. remove the root dentry update
 	 */
-	if (IS_ROOT(dentry)) {
-		//setup_default_pre_root_state(dentry->d_inode);
-	} else {
+	if (!IS_ROOT(dentry)) {
 		parent = dget_parent(dentry);
 		if (parent) {
 			get_derived_permission(parent, dentry);
@@ -384,7 +382,6 @@ int is_obbpath_invalid(struct dentry *dent)
 				kfree(path_buf);
 			}
 
-			//unlock_dir(lower_parent);
 			pathcpy(&lower_path, &di->lower_path);
 			need_put = 1;
 		}
