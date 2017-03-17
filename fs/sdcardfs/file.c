@@ -216,7 +216,7 @@ static int sdcardfs_open(struct inode *inode, struct file *file)
 		goto out_err;
 	}
 
-	if(!check_caller_access_to_name(parent->d_inode, &dentry->d_name)) {
+	if (!check_caller_access_to_name(parent->d_inode, &dentry->d_name)) {
 		err = -EACCES;
 		goto out_err;
 	}

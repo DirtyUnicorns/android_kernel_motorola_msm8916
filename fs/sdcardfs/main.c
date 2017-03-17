@@ -147,6 +147,7 @@ int parse_options_remount(struct super_block *sb, char *options, int silent,
 
 	while ((p = strsep(&options, ",")) != NULL) {
 		int token;
+
 		if (!*p)
 			continue;
 
@@ -326,11 +327,15 @@ static int sdcardfs_read_super(struct vfsmount *mnt, struct super_block *sb,
 	/* setup permission policy */
 	sb_info->obbpath_s = kzalloc(PATH_MAX, GFP_KERNEL);
 	mutex_lock(&sdcardfs_super_list_lock);
-	if(sb_info->options.multiuser) {
-		setup_derived_state(sb->s_root->d_inode, PERM_PRE_ROOT, sb_info->options.fs_user_id, AID_ROOT, false, sb->s_root->d_inode);
+	if (sb_info->options.multiuser) {
+		setup_derived_state(sb->s_root->d_inode, PERM_PRE_ROOT,
+					sb_info->options.fs_user_id, AID_ROOT,
+					false, sb->s_root->d_inode);
 		snprintf(sb_info->obbpath_s, PATH_MAX, "%s/obb", dev_name);
 	} else {
-		setup_derived_state(sb->s_root->d_inode, PERM_ROOT, sb_info->options.fs_user_id, AID_ROOT, false, sb->s_root->d_inode);
+		setup_derived_state(sb->s_root->d_inode, PERM_ROOT,
+					sb_info->options.fs_user_id, AID_ROOT,
+					false, sb->s_root->d_inode);
 		snprintf(sb_info->obbpath_s, PATH_MAX, "%s/Android/obb", dev_name);
 	}
 	fixup_tmp_permissions(sb->s_root->d_inode);
@@ -363,8 +368,10 @@ out:
 
 /* A feature which supports mount_nodev() with options */
 static struct dentry *mount_nodev_with_options(struct vfsmount *mnt,
-	struct file_system_type *fs_type, int flags, const char *dev_name, void *data,
-        int (*fill_super)(struct vfsmount *, struct super_block *, const char *, void *, int))
+			struct file_system_type *fs_type, int flags,
+			const char *dev_name, void *data,
+			int (*fill_super)(struct vfsmount *, struct super_block *,
+						const char *, void *, int))
 
 {
 	int error;
@@ -396,15 +403,11 @@ static struct dentry *sdcardfs_mount(struct vfsmount *mnt,
 						raw_data, sdcardfs_read_super);
 }
 
-static struct dentry *sdcardfs_mount_wrn(struct file_system_type *fs_type, int flags,
-		    const char *dev_name, void *raw_data)
+static struct dentry *sdcardfs_mount_wrn(struct file_system_type *fs_type,
+		    int flags, const char *dev_name, void *raw_data)
 {
 	WARN(1, "sdcardfs does not support mount. Use mount2.\n");
 	return ERR_PTR(-EINVAL);
-}
-
-void *sdcardfs_alloc_mnt_data(void) {
-	return kmalloc(sizeof(struct sdcardfs_vfsmount_options), GFP_KERNEL);
 }
 
 void *sdcardfs_alloc_mnt_data(void)

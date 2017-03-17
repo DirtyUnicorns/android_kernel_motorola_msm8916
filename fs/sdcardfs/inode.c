@@ -23,10 +23,10 @@
 #include <linux/ratelimit.h>
 
 /* Do not directly use this function. Use OVERRIDE_CRED() instead. */
-const struct cred * override_fsids(struct sdcardfs_sb_info* sbi, struct sdcardfs_inode_info *info)
+const struct cred *override_fsids(struct sdcardfs_sb_info *sbi, struct sdcardfs_inode_info *info)
 {
-	struct cred * cred;
-	const struct cred * old_cred;
+	struct cred *cred;
+	const struct cred *old_cred;
 	uid_t uid;
 
 	cred = prepare_creds();
@@ -67,7 +67,7 @@ static int sdcardfs_create(struct inode *dir, struct dentry *dentry,
 	struct fs_struct *saved_fs;
 	struct fs_struct *copied_fs;
 
-	if(!check_caller_access_to_name(dir, &dentry->d_name)) {
+	if (!check_caller_access_to_name(dir, &dentry->d_name)) {
 		err = -EACCES;
 		goto out_eacces;
 	}
@@ -166,7 +166,7 @@ static int sdcardfs_unlink(struct inode *dir, struct dentry *dentry)
 	struct path lower_path;
 	const struct cred *saved_cred = NULL;
 
-	if(!check_caller_access_to_name(dir, &dentry->d_name)) {
+	if (!check_caller_access_to_name(dir, &dentry->d_name)) {
 		err = -EACCES;
 		goto out_eacces;
 	}
@@ -248,7 +248,7 @@ static int touch(char *abs_path, mode_t mode)
 		if (PTR_ERR(filp) == -EEXIST) {
 			return 0;
 		} else {
-			pr_err("sdcardfs: failed to open(%s): %ld\n",
+			printk(KERN_ERR "sdcardfs: failed to open(%s): %ld\n",
 						abs_path, PTR_ERR(filp));
 			return PTR_ERR(filp);
 		}
@@ -274,7 +274,7 @@ static int sdcardfs_mkdir(struct inode *dir, struct dentry *dentry, umode_t mode
 	struct qstr q_obb = QSTR_LITERAL("obb");
 	struct qstr q_data = QSTR_LITERAL("data");
 
-	if(!check_caller_access_to_name(dir, &dentry->d_name)) {
+	if (!check_caller_access_to_name(dir, &dentry->d_name)) {
 		err = -EACCES;
 		goto out_eacces;
 	}
@@ -385,7 +385,7 @@ static int sdcardfs_rmdir(struct inode *dir, struct dentry *dentry)
 	struct path lower_path;
 	const struct cred *saved_cred = NULL;
 
-	if(!check_caller_access_to_name(dir, &dentry->d_name)) {
+	if (!check_caller_access_to_name(dir, &dentry->d_name)) {
 		err = -EACCES;
 		goto out_eacces;
 	}
@@ -471,7 +471,7 @@ static int sdcardfs_rename(struct inode *old_dir, struct dentry *old_dentry,
 	struct path lower_old_path, lower_new_path;
 	const struct cred *saved_cred = NULL;
 
-	if(!check_caller_access_to_name(old_dir, &old_dentry->d_name) ||
+	if (!check_caller_access_to_name(old_dir, &old_dentry->d_name) ||
 		!check_caller_access_to_name(new_dir, &new_dentry->d_name)) {
 		err = -EACCES;
 		goto out_eacces;
@@ -741,14 +741,15 @@ static int sdcardfs_setattr(struct vfsmount *mnt, struct dentry *dentry, struct 
 	/* prepare our own lower struct iattr (with the lower file) */
 	memcpy(&lower_ia, ia, sizeof(lower_ia));
 	/* Allow touch updating timestamps. A previous permission check ensures
-	 * we have write access. Changes to mode, owner, and group are ignored*/
+	 * we have write access. Changes to mode, owner, and group are ignored
+	 */
 	ia->ia_valid |= ATTR_FORCE;
 	err = inode_change_ok(&tmp, ia);
 
 	if (!err) {
 		/* check the Android group ID */
 		parent = dget_parent(dentry);
-		if(!check_caller_access_to_name(parent->d_inode, &dentry->d_name))
+		if (!check_caller_access_to_name(parent->d_inode, &dentry->d_name))
 			err = -EACCES;
 		dput(parent);
 	}
@@ -821,10 +822,12 @@ out_err:
 	return err;
 }
 
-static int sdcardfs_fillattr(struct vfsmount *mnt, struct inode *inode, struct kstat *stat)
+static int sdcardfs_fillattr(struct vfsmount *mnt,
+				struct inode *inode, struct kstat *stat)
 {
 	struct sdcardfs_inode_info *info = SDCARDFS_I(inode);
 	struct inode *top = grab_top(info);
+
 	if (!top)
 		return -EINVAL;
 
@@ -854,7 +857,7 @@ static int sdcardfs_getattr(struct vfsmount *mnt, struct dentry *dentry,
 	int err;
 
 	parent = dget_parent(dentry);
-	if(!check_caller_access_to_name(parent->d_inode, &dentry->d_name)) {
+	if (!check_caller_access_to_name(parent->d_inode, &dentry->d_name)) {
 		dput(parent);
 		return -EACCES;
 	}

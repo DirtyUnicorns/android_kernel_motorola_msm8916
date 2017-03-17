@@ -360,7 +360,7 @@ put_name:
 				 * because the sdcard daemon also regards this case as
 				 * a lookup fail.
 				 */
-				pr_info("sdcardfs: base obbpath is not available\n");
+				printk(KERN_INFO "sdcardfs: base obbpath is not available\n");
 				sdcardfs_put_reset_orig_path(dentry);
 				goto out;
 			}
@@ -439,7 +439,7 @@ struct dentry *sdcardfs_lookup(struct inode *dir, struct dentry *dentry,
 
 	parent = dget_parent(dentry);
 
-	if(!check_caller_access_to_name(parent->d_inode, &dentry->d_name)) {
+	if (!check_caller_access_to_name(parent->d_inode, &dentry->d_name)) {
 		ret = ERR_PTR(-EACCES);
 		goto out_err;
 	}
