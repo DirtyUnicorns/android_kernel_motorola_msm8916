@@ -392,5 +392,13 @@ config LAZYPLUG
 	  This enables the conservative hotplugging, lazyplug by arter97
 	  based on intelli_plug. Refer to the comments for more info.
 
+config BRICKED_HOTPLUG
+	bool "Enable kernel based mpdecision"
+	depends on MSM_RUN_QUEUE_STATS
+    default y
+	help
+	  This enables kernel based multi core control.
+	  (up/down hotplug based on load)
+
 endif
 endmenu
