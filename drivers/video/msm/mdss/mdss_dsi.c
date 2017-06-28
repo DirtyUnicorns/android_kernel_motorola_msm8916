@@ -1280,6 +1280,9 @@ static int mdss_dsi_event_handler(struct mdss_panel_data *pdata,
 			rc |= mdss_dsi_unblank(pdata);
 		break;
 	case MDSS_EVENT_PANEL_ON:
+#ifdef CONFIG_STATE_NOTIFIER
+		state_resume();
+#endif
 		ctrl_pdata->ctrl_state |= CTRL_STATE_MDP_ACTIVE;
 		if (ctrl_pdata->bl_on_defer)
 			ctrl_pdata->bl_on_defer(ctrl_pdata);
