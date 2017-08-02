@@ -42,6 +42,9 @@ static DEFINE_HASHTABLE(package_to_appid, 8);
 static DEFINE_HASHTABLE(package_to_userid, 8);
 static DEFINE_HASHTABLE(ext_to_groupid, 8);
 
+struct packagelist_data {
+	DECLARE_HASHTABLE(package_to_appid,8);
+	struct mutex hashtable_lock;
 
 static struct kmem_cache *hashtable_entry_cachep;
 
@@ -101,15 +104,15 @@ static appid_t __get_ext_gid(const struct qstr *key)
 	unsigned int hash = key->hash;
 	appid_t ret_id;
 
-	rcu_read_lock();
-	hash_for_each_possible_rcu(ext_to_groupid, hash_cur, hlist, hash) {
-		if (qstr_case_eq(key, &hash_cur->key)) {
-			ret_id = atomic_read(&hash_cur->value);
-			rcu_read_unlock();
+	mutex_lock(&pkgl_dat->hashtable_lock);
+	hash_for_each_possible(pkgl_dat->package_to_appid, hash_cur, hlist, hash) {
+		if (!strcasecmp(app_name, hash_cur->key)) {
+			ret_id = (appid_t)hash_cur->value;
+			mutex_unlock(&pkgl_dat->hashtable_lock);
 			return ret_id;
 		}
 	}
-	rcu_read_unlock();
+	mutex_unlock(&pkgl_dat->hashtable_lock);
 	return 0;
 }
 
@@ -219,23 +222,20 @@ static int insert_packagelist_appid_entry_locked(const struct qstr *key, appid_t
 			return 0;
 		}
 	}
-	new_entry = alloc_hashtable_entry(key, value);
+	new_entry = kmem_cache_alloc(hashtable_entry_cachep, GFP_KERNEL);
 	if (!new_entry)
 		return -ENOMEM;
-	hash_add_rcu(package_to_appid, &new_entry->hlist, hash);
+	new_entry->key = kstrdup(key, GFP_KERNEL);
+	new_entry->value = value;
+	hash_add(pkgl_dat->package_to_appid, &new_entry->hlist, hash);
 	return 0;
 }
 
-static int insert_ext_gid_entry_locked(const struct qstr *key, appid_t value)
-{
-	struct hashtable_entry *hash_cur;
-	struct hashtable_entry *new_entry;
-	unsigned int hash = key->hash;
-
-	/* An extension can only belong to one gid */
-	hash_for_each_possible_rcu(ext_to_groupid, hash_cur, hlist, hash) {
-		if (qstr_case_eq(key, &hash_cur->key))
-			return -EINVAL;
+static void fixup_perms(struct super_block *sb) {
+	if (sb && sb->s_magic == SDCARDFS_SUPER_MAGIC) {
+		mutex_lock(&sb->s_root->d_inode->i_mutex);
+		get_derive_permissions_recursive(sb->s_root);
+		mutex_unlock(&sb->s_root->d_inode->i_mutex);
 	}
 	new_entry = alloc_hashtable_entry(key, value);
 	if (!new_entry)
@@ -266,15 +266,10 @@ static int insert_userid_exclude_entry_locked(const struct qstr *key, userid_t v
 static void fixup_all_perms_name(const struct qstr *key)
 {
 	struct sdcardfs_sb_info *sbinfo;
-	struct limit_search limit = {
-		.flags = BY_NAME,
-		.name = QSTR_INIT(key->name, key->len),
-	};
-	list_for_each_entry(sbinfo, &sdcardfs_super_list, list) {
-		if (sbinfo_has_sdcard_magic(sbinfo))
-			fixup_perms_recursive(sbinfo->sb->s_root, &limit);
-	}
-}
+	mutex_lock(&sdcardfs_super_list_lock);
+	mutex_lock(&pkgl_dat->hashtable_lock);
+	ret = insert_str_to_int_lock(pkgl_dat, key, value);
+	mutex_unlock(&pkgl_dat->hashtable_lock);
 
 static void fixup_all_perms_name_userid(const struct qstr *key, userid_t userid)
 {
@@ -285,21 +280,9 @@ static void fixup_all_perms_name_userid(const struct qstr *key, userid_t userid)
 		.userid = userid,
 	};
 	list_for_each_entry(sbinfo, &sdcardfs_super_list, list) {
-		if (sbinfo_has_sdcard_magic(sbinfo))
-			fixup_perms_recursive(sbinfo->sb->s_root, &limit);
-	}
-}
-
-static void fixup_all_perms_userid(userid_t userid)
-{
-	struct sdcardfs_sb_info *sbinfo;
-	struct limit_search limit = {
-		.flags = BY_USERID,
-		.userid = userid,
-	};
-	list_for_each_entry(sbinfo, &sdcardfs_super_list, list) {
-		if (sbinfo_has_sdcard_magic(sbinfo))
-			fixup_perms_recursive(sbinfo->sb->s_root, &limit);
+		if (sbinfo) {
+			fixup_perms(sbinfo->sb);
+		}
 	}
 }
 
@@ -332,64 +315,17 @@ static int insert_userid_exclude_entry(const struct qstr *key, userid_t value)
 	int err;
 
 	mutex_lock(&sdcardfs_super_list_lock);
-	err = insert_userid_exclude_entry_locked(key, value);
-	if (!err)
-		fixup_all_perms_name_userid(key, value);
-	mutex_unlock(&sdcardfs_super_list_lock);
-
-	return err;
-}
-
-static void free_hashtable_entry(struct hashtable_entry *entry)
-{
-	kfree(entry->key.name);
-	kmem_cache_free(hashtable_entry_cachep, entry);
-}
-
-static void remove_packagelist_entry_locked(const struct qstr *key)
-{
-	struct hashtable_entry *hash_cur;
-	unsigned int hash = key->hash;
-	struct hlist_node *h_t;
-	HLIST_HEAD(free_list);
-
-	hash_for_each_possible_rcu(package_to_userid, hash_cur, hlist, hash) {
-		if (qstr_case_eq(key, &hash_cur->key)) {
-			hash_del_rcu(&hash_cur->hlist);
-			hlist_add_head(&hash_cur->dlist, &free_list);
-		}
-	}
-	hash_for_each_possible_rcu(package_to_appid, hash_cur, hlist, hash) {
-		if (qstr_case_eq(key, &hash_cur->key)) {
-			hash_del_rcu(&hash_cur->hlist);
-			hlist_add_head(&hash_cur->dlist, &free_list);
+	mutex_lock(&pkgl_dat->hashtable_lock);
+	hash_for_each_possible(pkgl_dat->package_to_appid, hash_cur, hlist, hash) {
+		if (!strcasecmp(key, hash_cur->key)) {
+			remove_str_to_int_lock(hash_cur);
 			break;
 		}
 	}
-	synchronize_rcu();
-	hlist_for_each_entry_safe(hash_cur, h_t, &free_list, dlist)
-		free_hashtable_entry(hash_cur);
-}
-
-static void remove_packagelist_entry(const struct qstr *key)
-{
-	mutex_lock(&sdcardfs_super_list_lock);
-	remove_packagelist_entry_locked(key);
-	fixup_all_perms_name(key);
-	mutex_unlock(&sdcardfs_super_list_lock);
-}
-
-static void remove_ext_gid_entry_locked(const struct qstr *key, gid_t group)
-{
-	struct hashtable_entry *hash_cur;
-	unsigned int hash = key->hash;
-
-	hash_for_each_possible_rcu(ext_to_groupid, hash_cur, hlist, hash) {
-		if (qstr_case_eq(key, &hash_cur->key) && atomic_read(&hash_cur->value) == group) {
-			hash_del_rcu(&hash_cur->hlist);
-			synchronize_rcu();
-			free_hashtable_entry(hash_cur);
-			break;
+	mutex_unlock(&pkgl_dat->hashtable_lock);
+	list_for_each_entry(sbinfo, &sdcardfs_super_list, list) {
+		if (sbinfo) {
+			fixup_perms(sbinfo->sb);
 		}
 	}
 }
@@ -407,17 +343,11 @@ static void remove_userid_all_entry_locked(userid_t userid)
 	struct hlist_node *h_t;
 	HLIST_HEAD(free_list);
 	int i;
-
-	hash_for_each_rcu(package_to_userid, i, hash_cur, hlist) {
-		if (atomic_read(&hash_cur->value) == userid) {
-			hash_del_rcu(&hash_cur->hlist);
-			hlist_add_head(&hash_cur->dlist, &free_list);
-		}
-	}
-	synchronize_rcu();
-	hlist_for_each_entry_safe(hash_cur, h_t, &free_list, dlist) {
-		free_hashtable_entry(hash_cur);
-	}
+	mutex_lock(&pkgl_dat->hashtable_lock);
+	hash_for_each_safe(pkgl_dat->package_to_appid, i, h_t, hash_cur, hlist)
+		remove_str_to_int_lock(hash_cur);
+	mutex_unlock(&pkgl_dat->hashtable_lock);
+	hash_init(pkgl_dat->package_to_appid);
 }
 
 static void remove_userid_all_entry(userid_t userid)
@@ -444,12 +374,10 @@ static void remove_userid_exclude_entry_locked(const struct qstr *key, userid_t 
 	}
 }
 
-static void remove_userid_exclude_entry(const struct qstr *key, userid_t userid)
-{
-	mutex_lock(&sdcardfs_super_list_lock);
-	remove_userid_exclude_entry_locked(key, userid);
-	fixup_all_perms_name_userid(key, userid);
-	mutex_unlock(&sdcardfs_super_list_lock);
+	mutex_init(&pkgl_dat->hashtable_lock);
+	hash_init(pkgl_dat->package_to_appid);
+
+	return pkgl_dat;
 }
 
 static void packagelist_destroy(void)
@@ -767,28 +695,18 @@ static ssize_t packages_list_show(struct packages *packages,
 	struct hashtable_entry *hash_cur_user;
 	int i;
 	int count = 0, written = 0;
-	const char errormsg[] = "<truncated>\n";
-	unsigned int hash;
+	char errormsg[] = "<truncated>\n";
 
-	rcu_read_lock();
-	hash_for_each_rcu(package_to_appid, i, hash_cur_app, hlist) {
-		written = scnprintf(page + count, PAGE_SIZE - sizeof(errormsg) - count, "%s %d\n",
-					hash_cur_app->key.name, atomic_read(&hash_cur_app->value));
-		hash = hash_cur_app->key.hash;
-		hash_for_each_possible_rcu(package_to_userid, hash_cur_user, hlist, hash) {
-			if (qstr_case_eq(&hash_cur_app->key, &hash_cur_user->key)) {
-				written += scnprintf(page + count + written - 1,
-					PAGE_SIZE - sizeof(errormsg) - count - written + 1,
-					" %d\n", atomic_read(&hash_cur_user->value)) - 1;
-			}
-		}
-		if (count + written == PAGE_SIZE - sizeof(errormsg) - 1) {
+	mutex_lock(&pkgl_data_all->hashtable_lock);
+	hash_for_each_safe(pkgl_data_all->package_to_appid, i, h_t, hash_cur, hlist) {
+		written = scnprintf(page + count, PAGE_SIZE - sizeof(errormsg) - count, "%s %d\n", (char *)hash_cur->key, hash_cur->value);
+		if (count + written == PAGE_SIZE - sizeof(errormsg)) {
 			count += scnprintf(page + count, PAGE_SIZE - count, errormsg);
 			break;
 		}
 		count += written;
 	}
-	rcu_read_unlock();
+	mutex_unlock(&pkgl_data_all->hashtable_lock);
 
 	return count;
 }

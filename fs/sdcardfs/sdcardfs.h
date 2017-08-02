@@ -29,7 +29,6 @@
 #include <linux/dcache.h>
 #include <linux/file.h>
 #include <linux/fs.h>
-#include <linux/aio.h>
 #include <linux/mm.h>
 #include <linux/mount.h>
 #include <linux/namei.h>
@@ -186,10 +185,6 @@ struct sdcardfs_inode_info {
 	userid_t userid;
 	uid_t d_uid;
 	bool under_android;
-	bool under_cache;
-	bool under_obb;
-	/* top folder for ownership */
-	struct inode *top;
 
 	struct inode vfs_inode;
 };
@@ -473,19 +468,11 @@ extern int packagelist_init(void);
 extern void packagelist_exit(void);
 
 /* for derived_perm.c */
-#define BY_NAME		(1 << 0)
-#define BY_USERID	(1 << 1)
-struct limit_search {
-	unsigned int flags;
-	struct qstr name;
-	userid_t userid;
-};
-
-extern void setup_derived_state(struct inode *inode, perm_t perm, userid_t userid,
-			uid_t uid, bool under_android, struct inode *top);
+extern void setup_derived_state(struct inode *inode, perm_t perm,
+			userid_t userid, uid_t uid, bool under_android);
 extern void get_derived_permission(struct dentry *parent, struct dentry *dentry);
-extern void get_derived_permission_new(struct dentry *parent, struct dentry *dentry, const struct qstr *name);
-extern void fixup_perms_recursive(struct dentry *dentry, struct limit_search *limit);
+extern void get_derived_permission_new(struct dentry *parent, struct dentry *dentry, struct dentry *newdentry);
+extern void get_derive_permissions_recursive(struct dentry *parent);
 
 extern void update_derived_permission_lock(struct dentry *dentry);
 void fixup_lower_ownership(struct dentry *dentry, const char *name);
