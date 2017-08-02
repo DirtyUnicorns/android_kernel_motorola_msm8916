@@ -55,6 +55,7 @@
 #include <net/cfg80211.h>
 #include <linux/firmware.h>
 #include <linux/vmalloc.h>
+
 //Moto, read MACs from boot params
 #include <linux/of.h>
 #include <linux/of_address.h>
@@ -1766,7 +1767,6 @@ static inline void strtomac(char * buf, unsigned char macaddr[6]) {
             "%s,Can not parse mac address: %s", __func__,buf);
 }
 #endif
-
 /**------------------------------------------------------------------------
 
   \brief vos_nv_readMultiMacAddress() - return the Multiple MAC addresses
